@@ -1,0 +1,98 @@
+{
+    "main": {
+        "params": [
+            "args"
+        ],
+        "steps": [
+            {
+                "begin": {
+                    "call": "http.post",
+                    "args": {
+                        "url": "https://datastore.googleapis.com/v1/projects/ekaramad-playground:beginTransaction",
+                        "auth": {
+                            "type": "OAuth2"
+                        }
+                    },
+                    "result": "beginTransactionResponse",
+                    "next": "canCommit"
+                }
+            },
+            {
+                "canCommit": {
+                    "switch": [
+                        {
+                            "condition": "${beginTransactionResponse.code == 200}",
+                            "next": "commit"
+                        },
+                        {
+                            "condition": "${beginTransactionResponse.code != 200}",
+                            "next": "end"
+                        }
+                    ]
+                }
+            },
+            {
+                "commit": {
+                    "call": "http.post",
+                    "args": {
+                        "url": "https://datastore.googleapis.com/v1/projects/ekaramad-playground:commit",
+                        "body": {
+                            "mode": "TRANSACTIONAL",
+                            "mutations": "${args.mutations}",
+                            "transaction": "${beginTransactionResponse.body.transaction}"
+                        },
+                        "auth": {
+                            "type": "OAuth2"
+                        }
+                    },
+                    "result": "commitResult",
+                    "next": "canCreateTask"
+                }
+            },
+            {
+                "canCreateTask": {
+                    "switch": [
+                        {
+                            "condition": "${commitResult.code == 200}",
+                            "next": "createTask"
+                        },
+                        {
+                            "condition": "${commitResult.code != 200}",
+                            "next": "end"
+                        }
+                    ]
+                }
+            },
+            {
+                "createTask": {
+                    "call": "http.post",
+                    "args": {
+                        "url": "${args.createUrl}",
+                        "body": {
+                            "task": "${args.task}"
+                        },
+                        "auth": {
+                            "type": "OAuth2"
+                        }
+                    },
+                    "result": "taskResult",
+                    "next": "shouldRetryCreateTask"
+                }
+            },
+            {
+                "shouldRetryCreateTask": {
+                    "switch": [
+                        {
+                            "condition": "${taskResult.code == 200}",
+                            "next": "end"
+                        },
+                        {
+                            "condition": "${taskResult.code != 200}",
+                            "next": "createTask"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
